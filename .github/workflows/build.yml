@@ -41,20 +41,44 @@ jobs:
     
     - name: 安装.NET Framework 4.5.2 Developer Pack
       run: |
-        # 直接下载并安装.NET Framework 4.5.2 Developer Pack
-        Write-Host "下载.NET Framework 4.5.2 Developer Pack..."
-        $url = "https://download.microsoft.com/download/4/3/b/43b61315-b2ce-4f5b-9e32-34cca07b2f0e/NDP452-KB2901951-x86-x64-DevPack.exe"
-        $output = "$env:TEMP\NDP452-KB2901951-x86-x64-DevPack.exe"
-        Invoke-WebRequest -Uri $url -OutFile $output
-        
-        Write-Host "安装.NET Framework 4.5.2 Developer Pack..."
-        Start-Process -FilePath $output -ArgumentList "/quiet" -Wait -NoNewWindow
-        
-        # 验证安装
-        if (Test-Path "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5.2") {
-          Write-Host "✅ .NET Framework 4.5.2 Reference Assemblies 安装成功"
+        # 检查是否已存在.NET Framework 4.5参考程序集
+        if (Test-Path "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5") {
+          Write-Host "✅ .NET Framework 4.5 Reference Assemblies 已存在"
         } else {
-          Write-Host "⚠️ .NET Framework 4.5.2 Reference Assemblies 可能未正确安装"
+          Write-Host "下载并安装.NET Framework 4.5.2 Developer Pack..."
+          $url = "https://download.microsoft.com/download/4/3/b/43b61315-b2ce-4f5b-9e32-34cca07b2f0e/NDP452-KB2901951-x86-x64-DevPack.exe"
+          $output = "$env:TEMP\NDP452-KB2901951-x86-x64-DevPack.exe"
+          
+          try {
+            Invoke-WebRequest -Uri $url -OutFile $output -TimeoutSec 300
+            Start-Process -FilePath $output -ArgumentList "/quiet" -Wait -NoNewWindow
+            Start-Sleep -Seconds 10
+          } catch {
+            Write-Host "⚠️ 下载或安装失败: $_"
+          }
+        }
+        
+        # 最终验证 - 检查多个版本
+        $frameworks = @("v4.5", "v4.5.1", "v4.5.2")
+        foreach ($fw in $frameworks) {
+          $path = "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\$fw"
+          if (Test-Path $path) {
+            Write-Host "✅ 找到 .NET Framework $fw Reference Assemblies"
+          }
+        }
+        
+        # 如果都没有，尝试创建符号链接到已有版本
+        if (-not (Test-Path "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5")) {
+          $existingVersions = Get-ChildItem "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\" -Directory | Sort-Object Name -Descending
+          if ($existingVersions.Count -gt 0) {
+            $latestVersion = $existingVersions[0].FullName
+            Write-Host "尝试创建符号链接从 $latestVersion 到 v4.5"
+            try {
+              New-Item -ItemType SymbolicLink -Path "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5" -Target $latestVersion -Force
+            } catch {
+              Write-Host "符号链接创建失败: $_"
+            }
+          }
         }
       continue-on-error: true
     
