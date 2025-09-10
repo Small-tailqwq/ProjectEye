@@ -38,6 +38,62 @@ OS: Windows7/10
 
 Runtime: [.NET Framework 4.5+](https://dotnet.microsoft.com/download/dotnet-framework) 
 
+## 编译构建
+
+### 自动构建（推荐）
+
+项目已配置GitHub Actions自动构建流程，每次代码推送都会自动编译并生成Release包：
+
+1. 每次推送到main/master分支都会触发自动构建
+2. 构建完成后会自动上传构建产物到Actions页面
+3. 创建新tag（如v1.0.0）时会自动创建GitHub Release并上传二进制文件
+
+### 手动编译
+
+#### 在Windows环境下编译：
+
+1. 安装Visual Studio 2019或更高版本（需要.NET Framework 4.5开发组件）
+2. 克隆项目：
+   ```bash
+   git clone https://github.com/Small-tailqwq/ProjectEye.git
+   cd ProjectEye
+   ```
+
+3. 恢复NuGet包：
+   ```bash
+   cd src/Local/ProjectEye
+   nuget restore ProjectEye.Local.sln
+   ```
+
+4. 编译项目：
+   ```bash
+   msbuild ProjectEye.Local.sln /p:Configuration=Release /p:Platform="Any CPU"
+   ```
+
+5. 编译完成后，二进制文件位于：`src/Local/ProjectEye/bin/Release/`
+
+#### 使用现代.NET SDK编译：
+
+如果你安装了.NET 6.0或更高版本的SDK，也可以使用：
+
+```bash
+cd src/Local/ProjectEye
+dotnet restore ProjectEye.Local.sln
+dotnet build ProjectEye.Local.sln -c Release
+```
+
+注意：由于项目基于.NET Framework 4.5和WPF，只能在Windows环境下运行，但可以使用现代.NET SDK进行交叉编译。
+
+### 构建产物
+
+编译成功后会生成以下主要文件：
+- `ProjectEye.exe` - 主程序
+- `ProjectEye.exe.config` - 配置文件
+- `Project1.UI.dll` - UI组件库
+- `ProjectEyeUp.exe` - 更新程序
+- `ProjectEyeBug.exe` - 错误报告工具
+- 其他依赖库文件
+
 ## 其他
 
 [帮助文档](https://littlepanda.gitbook.io/project-eye/)

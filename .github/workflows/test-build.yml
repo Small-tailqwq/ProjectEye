@@ -1,0 +1,51 @@
+# 测试构建
+
+name: Test Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET Framework
+      uses: microsoft/setup-msbuild@v2
+      
+    - name: Setup NuGet
+      uses: nuget/setup-nuget@v1
+      with:
+        nuget-version: 'latest'
+        
+    - name: Show environment info
+      run: |
+        echo "Current directory: $(Get-Location)"
+        echo "Available .NET versions:"
+        dotnet --list-sdks
+        echo "MSBuild version:"
+        msbuild -version
+        
+    - name: List project files
+      run: |
+        Get-ChildItem -Recurse -Filter "*.sln" | Select-Object FullName
+        Get-ChildItem -Recurse -Filter "*.csproj" | Select-Object FullName
+        
+    - name: Restore NuGet packages
+      run: |
+        nuget restore src/Local/ProjectEye/ProjectEye.Local.sln
+        
+    - name: Try to build solution
+      run: |
+        msbuild src/Local/ProjectEye/ProjectEye.Local.sln /p:Configuration=Release /p:Platform="Any CPU" /v:detailed
+      continue-on-error: true
+        
+    - name: Upload logs
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: build-logs
+        path: "**/*.log"
