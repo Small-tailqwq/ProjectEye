@@ -41,8 +41,21 @@ jobs:
     
     - name: 安装.NET Framework 4.5 Targeting Pack
       run: |
-        # GitHub Actions Windows runner通常已有较新版本，但可能缺失4.5
-        choco install netfx-4.5-devpack -y
+        # 直接下载并安装.NET Framework 4.5 Developer Pack
+        Write-Host "下载.NET Framework 4.5 Developer Pack..."
+        $url = "https://download.microsoft.com/download/b/4/1/b4119c11-0423-477b-80ee-7a474314b1b3/NDP452-KB2901954-Web.exe"
+        $output = "$env:TEMP\NDP452-KB2901954-Web.exe"
+        Invoke-WebRequest -Uri $url -OutFile $output
+        
+        Write-Host "安装.NET Framework 4.5 Developer Pack..."
+        Start-Process -FilePath $output -ArgumentList "/quiet" -Wait -NoNewWindow
+        
+        # 验证安装
+        if (Test-Path "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5") {
+          Write-Host "✅ .NET Framework 4.5 Reference Assemblies 安装成功"
+        } else {
+          Write-Host "⚠️ .NET Framework 4.5 Reference Assemblies 可能未正确安装"
+        }
       continue-on-error: true
     
     - name: 设置.NET Framework构建环境
@@ -92,22 +105,30 @@ jobs:
         $config = if ("${{ github.event.inputs.build_type }}" -eq "") { "Release" } else { "${{ github.event.inputs.build_type }}" }
         Write-Host "构建配置: $config"
         
-        # 使用MSBuild构建，跳过有问题的项目
-        Write-Host "开始构建ProjectEye主项目..."
-        msbuild ProjectEye.csproj /p:Configuration=$config /p:Platform="Any CPU" /verbosity:normal
+        # 使用解决方案级别构建以避免OutputPath问题
+        Write-Host "开始构建整个解决方案..."
+        msbuild ProjectEye.Local.sln /p:Configuration=$config /p:Platform="Any CPU" /verbosity:normal
         
-        Write-Host "开始构建Project1.UI项目..."
-        msbuild ../Project1.UI/Project1.UI.csproj /p:Configuration=$config /p:Platform="Any CPU" /verbosity:normal
+        # 验证构建结果
+        Write-Host "验证构建产物..."
+        $buildPath = "bin/$config"
         
-        Write-Host "开始构建ProjectEyeUp项目..."
-        msbuild ../ProjectEyeUp/ProjectEyeUp.csproj /p:Configuration=$config /p:Platform="Any CPU" /verbosity:normal
+        if (Test-Path "$buildPath/ProjectEye.exe") {
+          Write-Host "✅ ProjectEye.exe 构建成功"
+        } else {
+          Write-Host "❌ ProjectEye.exe 构建失败"
+        }
         
-        # ProjectEyeBug项目如果失败就跳过
-        Write-Host "尝试构建ProjectEyeBug项目..."
-        try {
-          msbuild ../ProjectEyeBug/ProjectEyeBug.csproj /p:Configuration=$config /p:Platform="Any CPU" /verbosity:normal
-        } catch {
-          Write-Host "ProjectEyeBug构建失败，但继续进行..." -ForegroundColor Yellow
+        if (Test-Path "../Project1.UI/bin/$config/Project1.UI.dll") {
+          Write-Host "✅ Project1.UI.dll 构建成功"
+        } else {
+          Write-Host "❌ Project1.UI.dll 构建失败"
+        }
+        
+        if (Test-Path "../ProjectEyeUp/bin/$config/ProjectEyeUp.exe") {
+          Write-Host "✅ ProjectEyeUp.exe 构建成功"
+        } else {
+          Write-Host "❌ ProjectEyeUp.exe 构建失败"
         }
       continue-on-error: false
     
