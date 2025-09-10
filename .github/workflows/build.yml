@@ -39,22 +39,22 @@ jobs:
       with:
         fetch-depth: 0
     
-    - name: 安装.NET Framework 4.5 Targeting Pack
+    - name: 安装.NET Framework 4.5.2 Developer Pack
       run: |
-        # 直接下载并安装.NET Framework 4.5 Developer Pack
-        Write-Host "下载.NET Framework 4.5 Developer Pack..."
-        $url = "https://download.microsoft.com/download/b/4/1/b4119c11-0423-477b-80ee-7a474314b1b3/NDP452-KB2901954-Web.exe"
-        $output = "$env:TEMP\NDP452-KB2901954-Web.exe"
+        # 直接下载并安装.NET Framework 4.5.2 Developer Pack
+        Write-Host "下载.NET Framework 4.5.2 Developer Pack..."
+        $url = "https://download.microsoft.com/download/4/3/b/43b61315-b2ce-4f5b-9e32-34cca07b2f0e/NDP452-KB2901951-x86-x64-DevPack.exe"
+        $output = "$env:TEMP\NDP452-KB2901951-x86-x64-DevPack.exe"
         Invoke-WebRequest -Uri $url -OutFile $output
         
-        Write-Host "安装.NET Framework 4.5 Developer Pack..."
+        Write-Host "安装.NET Framework 4.5.2 Developer Pack..."
         Start-Process -FilePath $output -ArgumentList "/quiet" -Wait -NoNewWindow
         
         # 验证安装
-        if (Test-Path "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5") {
-          Write-Host "✅ .NET Framework 4.5 Reference Assemblies 安装成功"
+        if (Test-Path "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5.2") {
+          Write-Host "✅ .NET Framework 4.5.2 Reference Assemblies 安装成功"
         } else {
-          Write-Host "⚠️ .NET Framework 4.5 Reference Assemblies 可能未正确安装"
+          Write-Host "⚠️ .NET Framework 4.5.2 Reference Assemblies 可能未正确安装"
         }
       continue-on-error: true
     
@@ -87,10 +87,15 @@ jobs:
         # 恢复传统packages.config包
         nuget restore ProjectEye.Local.sln -PackagesDirectory packages -Verbosity detailed
         
-        # 特别处理Fody包问题
-        if (Test-Path "ProjectEyeBug/packages.config") {
-          Write-Host "发现ProjectEyeBug的packages.config，单独恢复..."
-          nuget restore ProjectEyeBug/packages.config -PackagesDirectory packages -Verbosity detailed
+        # 手动复制关键的Fody包到packages目录（从全局缓存）
+        if (Test-Path "$env:USERPROFILE\.nuget\packages\fody\5.0.6") {
+          Write-Host "复制Fody 5.0.6到packages目录..."
+          Copy-Item "$env:USERPROFILE\.nuget\packages\fody\5.0.6" "packages\Fody.5.0.6" -Recurse -Force
+        }
+        
+        if (Test-Path "$env:USERPROFILE\.nuget\packages\costura.fody\4.0.0") {
+          Write-Host "复制Costura.Fody 4.0.0到packages目录..."
+          Copy-Item "$env:USERPROFILE\.nuget\packages\costura.fody\4.0.0" "packages\Costura.Fody.4.0.0" -Recurse -Force
         }
         
         # 显示packages目录内容
