@@ -39,46 +39,33 @@ jobs:
       with:
         fetch-depth: 0
     
-    - name: 安装.NET Framework 4.5.2 Developer Pack
+    - name: 验证.NET Framework 4.8环境
       run: |
-        # 检查是否已存在.NET Framework 4.5参考程序集
-        if (Test-Path "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5") {
-          Write-Host "✅ .NET Framework 4.5 Reference Assemblies 已存在"
-        } else {
-          Write-Host "下载并安装.NET Framework 4.5.2 Developer Pack..."
-          $url = "https://download.microsoft.com/download/4/3/b/43b61315-b2ce-4f5b-9e32-34cca07b2f0e/NDP452-KB2901951-x86-x64-DevPack.exe"
-          $output = "$env:TEMP\NDP452-KB2901951-x86-x64-DevPack.exe"
-          
-          try {
-            Invoke-WebRequest -Uri $url -OutFile $output -TimeoutSec 300
-            Start-Process -FilePath $output -ArgumentList "/quiet" -Wait -NoNewWindow
-            Start-Sleep -Seconds 10
-          } catch {
-            Write-Host "⚠️ 下载或安装失败: $_"
-          }
-        }
+        # 检查.NET Framework 4.8 Reference Assemblies
+        $frameworks = @("v4.8", "v4.7.2", "v4.7.1", "v4.7", "v4.6.2", "v4.6.1", "v4.6")
+        $foundFramework = $false
         
-        # 最终验证 - 检查多个版本
-        $frameworks = @("v4.5", "v4.5.1", "v4.5.2")
         foreach ($fw in $frameworks) {
           $path = "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\$fw"
           if (Test-Path $path) {
             Write-Host "✅ 找到 .NET Framework $fw Reference Assemblies"
+            $foundFramework = $true
           }
         }
         
-        # 如果都没有，尝试创建符号链接到已有版本
-        if (-not (Test-Path "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5")) {
-          $existingVersions = Get-ChildItem "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\" -Directory | Sort-Object Name -Descending
-          if ($existingVersions.Count -gt 0) {
-            $latestVersion = $existingVersions[0].FullName
-            Write-Host "尝试创建符号链接从 $latestVersion 到 v4.5"
-            try {
-              New-Item -ItemType SymbolicLink -Path "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5" -Target $latestVersion -Force
-            } catch {
-              Write-Host "符号链接创建失败: $_"
-            }
-          }
+        if (-not $foundFramework) {
+          Write-Host "⚠️ 未找到合适的.NET Framework Reference Assemblies"
+          Write-Host "尝试列出现有的框架版本："
+          Get-ChildItem "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\" -Directory | Sort-Object Name -Descending | Select-Object Name
+        }
+        
+        # GitHub Actions Windows runner通常已包含.NET Framework 4.8
+        Write-Host "检查.NET Framework运行时版本："
+        Get-ItemProperty "HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full\" -Name Release -ErrorAction SilentlyContinue | ForEach-Object {
+          $release = $_.Release
+          if ($release -ge 528040) { Write-Host "✅ .NET Framework 4.8+ 已安装 (Release: $release)" }
+          elseif ($release -ge 461808) { Write-Host "✅ .NET Framework 4.7.2+ 已安装 (Release: $release)" }
+          else { Write-Host "⚠️ .NET Framework 版本较老 (Release: $release)" }
         }
       continue-on-error: true
     
@@ -112,14 +99,14 @@ jobs:
         nuget restore ProjectEye.Local.sln -PackagesDirectory packages -Verbosity detailed
         
         # 手动复制关键的Fody包到packages目录（从全局缓存）
-        if (Test-Path "$env:USERPROFILE\.nuget\packages\fody\5.0.6") {
-          Write-Host "复制Fody 5.0.6到packages目录..."
-          Copy-Item "$env:USERPROFILE\.nuget\packages\fody\5.0.6" "packages\Fody.5.0.6" -Recurse -Force
+        if (Test-Path "$env:USERPROFILE\.nuget\packages\fody\6.9.3") {
+          Write-Host "复制Fody 6.9.3到packages目录..."
+          Copy-Item "$env:USERPROFILE\.nuget\packages\fody\6.9.3" "packages\Fody.6.9.3" -Recurse -Force
         }
         
-        if (Test-Path "$env:USERPROFILE\.nuget\packages\costura.fody\4.0.0") {
-          Write-Host "复制Costura.Fody 4.0.0到packages目录..."
-          Copy-Item "$env:USERPROFILE\.nuget\packages\costura.fody\4.0.0" "packages\Costura.Fody.4.0.0" -Recurse -Force
+        if (Test-Path "$env:USERPROFILE\.nuget\packages\costura.fody\6.0.0") {
+          Write-Host "复制Costura.Fody 6.0.0到packages目录..."
+          Copy-Item "$env:USERPROFILE\.nuget\packages\costura.fody\6.0.0" "packages\Costura.Fody.6.0.0" -Recurse -Force
         }
         
         # 显示packages目录内容
