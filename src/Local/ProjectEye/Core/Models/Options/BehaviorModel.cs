@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.Xml.Serialization;
+using ProjectEye.Core.Enums;
 
 namespace ProjectEye.Core.Models.Options
 {
@@ -29,6 +30,11 @@ namespace ProjectEye.Core.Models.Options
         /// 超时未选择时进入休息状态
         /// </summary>
         public bool IsHandleTimeoutRest { get; set; } = true;
+        
+        /// <summary>
+        /// 锁屏时的行为模式
+        /// </summary>
+        public ScreenLockBehavior ScreenLockBehavior { get; set; } = ScreenLockBehavior.ContinueTimer;
 
     }
 }

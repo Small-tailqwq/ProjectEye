@@ -1,5 +1,6 @@
 ﻿using Microsoft.Win32;
 using ProjectEye.Core.Models.Options;
+using ProjectEye.Core.Enums;
 using System;
 using System.Diagnostics;
 using System.Linq;
@@ -46,6 +47,14 @@ namespace ProjectEye.Core.Service
         /// 预提醒操作
         /// </summary>
         private PreAlertAction preAlertAction;
+        /// <summary>
+        /// 锁屏前的计时器状态
+        /// </summary>
+        private bool timerStateBeforeLock = false;
+        /// <summary>
+        /// 是否处于锁屏状态
+        /// </summary>
+        private bool isScreenLocked = false;
         #region Service
         private readonly ScreenService screen;
         private readonly ConfigService config;
@@ -114,6 +123,7 @@ namespace ProjectEye.Core.Service
 
             app.Exit += new ExitEventHandler(app_Exit);
             SystemEvents.PowerModeChanged += new PowerModeChangedEventHandler(OnPowerModeChanged);
+            SystemEvents.SessionSwitch += new SessionSwitchEventHandler(OnSessionSwitch);
         }
 
         #region 初始化
@@ -227,6 +237,89 @@ namespace ProjectEye.Core.Service
                 case PowerModes.Resume:
                     //电脑恢复
                     Start();
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// 处理会话切换事件（锁屏/解锁）
+        /// </summary>
+        private void OnSessionSwitch(object sender, SessionSwitchEventArgs e)
+        {
+            switch (e.Reason)
+            {
+                case SessionSwitchReason.SessionLock:
+                    // 锁屏时的处理
+                    HandleScreenLock();
+                    break;
+                case SessionSwitchReason.SessionUnlock:
+                    // 解锁时的处理
+                    HandleScreenUnlock();
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// 处理锁屏操作
+        /// </summary>
+        private void HandleScreenLock()
+        {
+            isScreenLocked = true;
+            
+            switch (config.options.Behavior.ScreenLockBehavior)
+            {
+                case ScreenLockBehavior.PauseTimer:
+                    // 暂停计时器，保存状态
+                    timerStateBeforeLock = work_timer.IsEnabled;
+                    if (work_timer.IsEnabled)
+                    {
+                        Pause();
+                    }
+                    break;
+                case ScreenLockBehavior.PauseAndResetTimer:
+                    // 暂停并准备重置
+                    timerStateBeforeLock = work_timer.IsEnabled;
+                    if (work_timer.IsEnabled)
+                    {
+                        Pause();
+                    }
+                    break;
+                case ScreenLockBehavior.ContinueTimer:
+                default:
+                    // 继续计时，不做任何处理
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// 处理解锁操作
+        /// </summary>
+        private void HandleScreenUnlock()
+        {
+            if (!isScreenLocked) return;
+            
+            isScreenLocked = false;
+            
+            switch (config.options.Behavior.ScreenLockBehavior)
+            {
+                case ScreenLockBehavior.PauseTimer:
+                    // 恢复之前的计时器状态
+                    if (timerStateBeforeLock)
+                    {
+                        Start();
+                    }
+                    break;
+                case ScreenLockBehavior.PauseAndResetTimer:
+                    // 重置并重新开始计时
+                    if (timerStateBeforeLock)
+                    {
+                        Reset();
+                        Start();
+                    }
+                    break;
+                case ScreenLockBehavior.ContinueTimer:
+                default:
+                    // 继续计时，不做任何处理
                     break;
             }
         }

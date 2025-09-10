@@ -218,5 +218,9 @@
     <sys:String x:Key="Lang_Minimum">最低</sys:String>
     <sys:String x:Key="Lang_Learnmore">了解更多</sys:String>
     <sys:String x:Key="Lang_HandleTimeoutAutoRest">超时未选择时进入休息状态</sys:String>
+    <sys:String x:Key="Lang_ScreenLockBehavior">锁屏时的行为</sys:String>
+    <sys:String x:Key="Lang_ContinueTimer">继续计时</sys:String>
+    <sys:String x:Key="Lang_PauseTimer">暂停计时器</sys:String>
+    <sys:String x:Key="Lang_PauseAndResetTimer">暂停并重置计时器</sys:String>
 
 </ResourceDictionary>
