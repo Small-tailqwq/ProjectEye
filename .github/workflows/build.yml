@@ -1,0 +1,178 @@
+name: Build and Release ProjectEye
+
+on:
+  # 自动触发条件
+  push:
+    branches: [ main, master, test ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  
+  # 手动触发 - 支持在GitHub网页端手动运行
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: '构建类型'
+        required: true
+        default: 'Debug'
+        type: choice
+        options:
+        - Debug
+        - Release
+      create_release:
+        description: '是否创建Release'
+        required: false
+        default: false
+        type: boolean
+      release_tag:
+        description: 'Release标签 (如: v1.4.4)'
+        required: false
+        type: string
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: 设置.NET Framework构建环境
+      uses: microsoft/setup-msbuild@v2
+    
+    - name: 设置NuGet
+      uses: nuget/setup-nuget@v2
+      with:
+        nuget-version: 'latest'
+    
+    - name: 恢复NuGet包
+      run: |
+        cd src/Local/ProjectEye
+        nuget restore ProjectEye.Local.sln
+    
+    - name: 构建解决方案 (自动触发)
+      if: github.event_name != 'workflow_dispatch'
+      run: |
+        cd src/Local/ProjectEye
+        msbuild ProjectEye.Local.sln /p:Configuration=Release /p:Platform="Any CPU" /p:OutputPath=bin\Release\ /verbosity:minimal
+    
+    - name: 构建解决方案 (手动触发)
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        cd src/Local/ProjectEye
+        msbuild ProjectEye.Local.sln /p:Configuration=${{ github.event.inputs.build_type }} /p:Platform="Any CPU" /p:OutputPath=bin\${{ github.event.inputs.build_type }}\ /verbosity:minimal
+    
+    - name: 收集构建产物
+      run: |
+        # 创建发布目录
+        mkdir release
+        
+        # 复制主程序文件
+        $buildPath = if ("${{ github.event.inputs.build_type }}" -eq "") { "Release" } else { "${{ github.event.inputs.build_type }}" }
+        
+        Copy-Item "src/Local/ProjectEye/bin/$buildPath/ProjectEye.exe" release/
+        Copy-Item "src/Local/ProjectEye/bin/$buildPath/ProjectEye.exe.config" release/ -ErrorAction SilentlyContinue
+        Copy-Item "src/Local/ProjectEye/bin/$buildPath/Project1.UI.dll" release/ -ErrorAction SilentlyContinue
+        Copy-Item "src/Local/ProjectEye/bin/$buildPath/ProjectEyeUp.exe" release/ -ErrorAction SilentlyContinue
+        Copy-Item "src/Local/ProjectEye/bin/$buildPath/ProjectEyeBug.exe" release/ -ErrorAction SilentlyContinue
+        
+        # 复制依赖库
+        Copy-Item "src/Local/ProjectEye/bin/$buildPath/*.dll" release/ -ErrorAction SilentlyContinue
+        
+        # 复制其他必要文件
+        Copy-Item "README.md" release/ -ErrorAction SilentlyContinue
+        Copy-Item "LICENSE" release/ -ErrorAction SilentlyContinue
+        
+        # 显示文件列表
+        Get-ChildItem release/
+    
+    - name: 上传构建产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: ProjectEye-${{ github.sha }}
+        path: release/
+        retention-days: 90
+    
+    - name: 创建发布包
+      if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true')
+      run: |
+        Compress-Archive -Path release/* -DestinationPath ProjectEye.zip
+    
+    - name: 创建GitHub Release (Tag触发)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ProjectEye.zip
+        body: |
+          ## ProjectEye ${{ github.ref_name }}
+          
+          ### 新功能与改进
+          - 📝 请在此处添加版本更新说明
+          
+          ### 下载说明
+          - 下载 `ProjectEye.zip` 并解压
+          - 运行 `ProjectEye.exe` 即可使用
+          - 需要 .NET Framework 4.5+ 运行环境
+          
+          ### 运行环境
+          - Windows 7/10/11
+          - .NET Framework 4.5+
+          
+          ---
+          🤖 自动构建于 GitHub Actions
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: 创建GitHub Release (手动触发)
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.event.inputs.release_tag || format('manual-{0}', github.sha) }}
+        name: ProjectEye ${{ github.event.inputs.release_tag || format('manual-{0}', github.sha) }}
+        files: ProjectEye.zip
+        body: |
+          ## ProjectEye 手动发布版本
+          
+          ### 构建信息
+          - 构建类型: ${{ github.event.inputs.build_type }}
+          - 构建分支: ${{ github.ref_name }}
+          - 构建提交: ${{ github.sha }}
+          
+          ### 下载说明
+          - 下载 `ProjectEye.zip` 并解压
+          - 运行 `ProjectEye.exe` 即可使用
+          - 需要 .NET Framework 4.5+ 运行环境
+          
+          ### 运行环境
+          - Windows 7/10/11
+          - .NET Framework 4.5+
+          
+          ---
+          🤖 手动触发构建于 GitHub Actions
+        draft: false
+        prerelease: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notification:
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: 构建状态通知
+      run: |
+        if [ "${{ needs.build.result }}" = "success" ]; then
+          echo "✅ ProjectEye 构建成功！"
+          echo "📦 构建产物已上传到 Actions 页面"
+          if [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ] || [ "${{ github.event.inputs.create_release }}" = "true" ]; then
+            echo "🚀 Release 已创建"
+          fi
+        else
+          echo "❌ ProjectEye 构建失败"
+          echo "📝 请检查构建日志"
+        fi
